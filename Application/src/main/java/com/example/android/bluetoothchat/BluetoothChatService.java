@@ -18,14 +18,9 @@ package com.example.android.bluetoothchat;
 
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
-import android.bluetooth.BluetoothGatt;
-import android.bluetooth.BluetoothGattCallback;
-import android.bluetooth.BluetoothGattCharacteristic;
-import android.bluetooth.BluetoothProfile;
 import android.bluetooth.BluetoothServerSocket;
 import android.bluetooth.BluetoothSocket;
 import android.content.Context;
-import android.content.Intent;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
@@ -66,8 +61,6 @@ public class BluetoothChatService {
     private ConnectedThread mConnectedThread;
     private int mState;
 
-    private Context mContext;
-
     // Constants that indicate the current connection state
     public static final int STATE_NONE = 0;       // we're doing nothing
     public static final int STATE_LISTEN = 1;     // now listening for incoming connections
@@ -81,7 +74,6 @@ public class BluetoothChatService {
      * @param handler A Handler to send messages back to the UI Activity
      */
     public BluetoothChatService(Context context, Handler handler) {
-        mContext = context;
         mAdapter = BluetoothAdapter.getDefaultAdapter();
         mState = STATE_NONE;
         mHandler = handler;
@@ -149,7 +141,7 @@ public class BluetoothChatService {
         Log.d(TAG, "connect to: " + device);
 
         // Cancel any thread attempting to make a connection
-        if (mState == BLE_STATE_CONNECTING) {
+        if (mState == STATE_CONNECTING) {
             if (mConnectThread != null) {
                 mConnectThread.cancel();
                 mConnectThread = null;
@@ -165,7 +157,7 @@ public class BluetoothChatService {
         // Start the thread to connect with the given device
         mConnectThread = new ConnectThread(device, secure);
         mConnectThread.start();
-        setState(BLE_STATE_CONNECTING);
+        setState(STATE_CONNECTING);
     }
 
     /**
@@ -211,7 +203,7 @@ public class BluetoothChatService {
         msg.setData(bundle);
         mHandler.sendMessage(msg);
 
-        setState(BLE_STATE_CONNECTED);
+        setState(STATE_CONNECTED);
     }
 
     /**
@@ -253,7 +245,7 @@ public class BluetoothChatService {
         ConnectedThread r;
         // Synchronize a copy of the ConnectedThread
         synchronized (this) {
-            if (mState != BLE_STATE_CONNECTED) return;
+            if (mState != STATE_CONNECTED) return;
             r = mConnectedThread;
         }
         // Perform the write unsynchronized
@@ -327,7 +319,7 @@ public class BluetoothChatService {
             BluetoothSocket socket = null;
 
             // Listen to the server socket if we're not connected
-            while (mState != BLE_STATE_CONNECTED) {
+            while (mState != STATE_CONNECTED) {
                 try {
                     // This is a blocking call and will only return on a
                     // successful connection or an exception
@@ -374,113 +366,6 @@ public class BluetoothChatService {
         }
     }
 
-    private BluetoothGatt mBluetoothGatt;
-    private int mBLEConnectionState = BLE_STATE_DISCONNECTED;
-
-    private static final int BLE_STATE_DISCONNECTED = 0;
-    private static final int BLE_STATE_CONNECTING = 1;
-    private static final int BLE_STATE_CONNECTED = 2;
-
-    public final static String ACTION_GATT_CONNECTED =
-            "com.example.bluetooth.le.ACTION_GATT_CONNECTED";
-    public final static String ACTION_GATT_DISCONNECTED =
-            "com.example.bluetooth.le.ACTION_GATT_DISCONNECTED";
-    public final static String ACTION_GATT_SERVICES_DISCOVERED =
-            "com.example.bluetooth.le.ACTION_GATT_SERVICES_DISCOVERED";
-    public final static String ACTION_DATA_AVAILABLE =
-            "com.example.bluetooth.le.ACTION_DATA_AVAILABLE";
-
-    public final static UUID UUID_HEART_RATE_MEASUREMENT =
-            UUID.fromString(SampleGattAttributes.HEART_RATE_MEASUREMENT);
-
-
-    private final BluetoothGattCallback mGattCallback = new BluetoothGattCallback() {
-        public final static String EXTRA_DATA =
-                "com.example.bluetooth.le.EXTRA_DATA";
-
-        @Override
-        public void onConnectionStateChange(BluetoothGatt gatt, int status, int newState) {
-            String intentAction;
-            if (newState == BluetoothProfile.STATE_CONNECTED) {
-                intentAction = ACTION_GATT_CONNECTED;
-                mBLEConnectionState = BLE_STATE_CONNECTED;
-                broadcastUpdate(intentAction);
-                android.util.Log.i(TAG, "Connected to GATT server.");
-                // Attempts to discover services after successful connection.
-                android.util.Log.i(TAG, "Attempting to start service discovery:" +
-                        mBluetoothGatt.discoverServices());
-
-            } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
-                intentAction = ACTION_GATT_DISCONNECTED;
-                mBLEConnectionState = BLE_STATE_DISCONNECTED;
-                android.util.Log.i(TAG, "Disconnected from GATT server.");
-                broadcastUpdate(intentAction);
-            }
-        }
-
-        @Override
-        public void onServicesDiscovered(BluetoothGatt gatt, int status) {
-            if (status == BluetoothGatt.GATT_SUCCESS) {
-                broadcastUpdate(ACTION_GATT_SERVICES_DISCOVERED);
-            } else {
-                android.util.Log.w(TAG, "onServicesDiscovered received: " + status);
-            }
-        }
-
-        @Override
-        public void onCharacteristicRead(BluetoothGatt gatt,
-                                         BluetoothGattCharacteristic characteristic,
-                                         int status) {
-            if (status == BluetoothGatt.GATT_SUCCESS) {
-                broadcastUpdate(ACTION_DATA_AVAILABLE, characteristic);
-            }
-        }
-
-        @Override
-        public void onCharacteristicChanged(BluetoothGatt gatt,
-                                            BluetoothGattCharacteristic characteristic) {
-            broadcastUpdate(ACTION_DATA_AVAILABLE, characteristic);
-        }
-
-        private void broadcastUpdate(final String action) {
-            final Intent intent = new Intent(action);
-            mContext.sendBroadcast(intent);
-        }
-
-        private void broadcastUpdate(final String action,
-                                     final BluetoothGattCharacteristic characteristic) {
-            final Intent intent = new Intent(action);
-
-            // This is special handling for the Heart Rate Measurement profile.  Data parsing is
-            // carried out as per profile specifications:
-            // http://developer.bluetooth.org/gatt/characteristics/Pages/CharacteristicViewer.aspx?u=org.bluetooth.characteristic.heart_rate_measurement.xml
-            if (UUID_HEART_RATE_MEASUREMENT.equals(characteristic.getUuid())) {
-                int flag = characteristic.getProperties();
-                int format = -1;
-                if ((flag & 0x01) != 0) {
-                    format = BluetoothGattCharacteristic.FORMAT_UINT16;
-                    android.util.Log.d(TAG, "Heart rate format UINT16.");
-                } else {
-                    format = BluetoothGattCharacteristic.FORMAT_UINT8;
-                    android.util.Log.d(TAG, "Heart rate format UINT8.");
-                }
-                final int heartRate = characteristic.getIntValue(format, 1);
-                android.util.Log.d(TAG, String.format("Received heart rate: %d", heartRate));
-                intent.putExtra(EXTRA_DATA, String.valueOf(heartRate));
-            } else {
-                // For all other profiles, writes the data formatted in HEX.
-                final byte[] data = characteristic.getValue();
-                if (data != null && data.length > 0) {
-                    final StringBuilder stringBuilder = new StringBuilder(data.length);
-                    for(byte byteChar : data)
-                        stringBuilder.append(String.format("%02X ", byteChar));
-                    intent.putExtra(EXTRA_DATA, new String(data) + "\n" + stringBuilder.toString());
-                }
-            }
-            mContext.sendBroadcast(intent);
-        }
-
-    };
 
     /**
      * This thread runs while attempting to make an outgoing connection
@@ -500,10 +385,7 @@ public class BluetoothChatService {
             // Get a BluetoothSocket for a connection with the
             // given BluetoothDevice
             try {
-                if (device.getType() == BluetoothDevice.DEVICE_TYPE_LE) {
-                    mBluetoothGatt = device.connectGatt(mContext, false, mGattCallback);
-                }
-                else if (secure) {
+                if (secure) {
                     tmp = device.createRfcommSocketToServiceRecord(
                             MY_UUID_SECURE);
                 } else {
