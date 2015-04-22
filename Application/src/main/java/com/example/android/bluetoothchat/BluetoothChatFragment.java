@@ -20,9 +20,13 @@ import android.app.ActionBar;
 import android.app.Activity;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
+import android.content.ComponentName;
+import android.content.Context;
 import android.content.Intent;
+import android.content.ServiceConnection;
 import android.os.Bundle;
 import android.os.Handler;
+import android.os.IBinder;
 import android.os.Message;
 import android.support.annotation.Nullable;
 import android.support.v4.app.Fragment;
@@ -86,6 +90,29 @@ public class BluetoothChatFragment extends Fragment {
      */
     private BluetoothChatService mChatService = null;
 
+    private BluetoothLeService mBluetoothLeService;
+    private String mDeviceAddress;
+
+    private final ServiceConnection mServiceConnection = new ServiceConnection() {
+
+        @Override
+        public void onServiceConnected(ComponentName componentName, IBinder service) {
+            mBluetoothLeService = ((BluetoothLeService.LocalBinder) service).getService();
+            if (!mBluetoothLeService.initialize()) {
+                android.util.Log.e(TAG, "Unable to initialize Bluetooth");
+                //finish();
+                getActivity().getSupportFragmentManager().beginTransaction().remove(BluetoothChatFragment.this).commit();
+            }
+            // Automatically connects to the device upon successful start-up initialization.
+            mBluetoothLeService.connect(mDeviceAddress);
+        }
+
+        @Override
+        public void onServiceDisconnected(ComponentName componentName) {
+            mBluetoothLeService = null;
+        }
+    };
+
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -99,6 +126,9 @@ public class BluetoothChatFragment extends Fragment {
             Toast.makeText(activity, "Bluetooth is not available", Toast.LENGTH_LONG).show();
             activity.finish();
         }
+
+        Intent gattServiceIntent = new Intent(getActivity(), BluetoothLeService.class);
+        getActivity().bindService(gattServiceIntent, mServiceConnection, Context.BIND_AUTO_CREATE);
     }
 
 
@@ -362,12 +392,18 @@ public class BluetoothChatFragment extends Fragment {
      */
     private void connectDevice(Intent data, boolean secure) {
         // Get the device MAC address
-        String address = data.getExtras()
+        mDeviceAddress = data.getExtras()
                 .getString(DeviceListActivity.EXTRA_DEVICE_ADDRESS);
         // Get the BluetoothDevice object
-        BluetoothDevice device = mBluetoothAdapter.getRemoteDevice(address);
+        BluetoothDevice device = mBluetoothAdapter.getRemoteDevice(mDeviceAddress);
+
         // Attempt to connect to the device
-        mChatService.connect(device, secure);
+        if (device.getType() == BluetoothDevice.DEVICE_TYPE_LE) {
+            mBluetoothLeService.connect(mDeviceAddress);
+        }
+        else {
+            mChatService.connect(device, secure);
+        }
     }
 
     @Override
