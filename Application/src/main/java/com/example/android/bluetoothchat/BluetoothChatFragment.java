@@ -235,21 +235,36 @@ public class BluetoothChatFragment extends Fragment {
      * @param message A string of text to send.
      */
     private void sendMessage(String message) {
-        // Check that we're actually connected before trying anything
-        if (mChatService.getState() != BluetoothChatService.STATE_CONNECTED) {
-            Toast.makeText(getActivity(), R.string.not_connected, Toast.LENGTH_SHORT).show();
-            return;
+        if (mBluetoothLeService != null) {  // TODO probably better to check the type of the device
+            if (mBluetoothLeService.getConnectionState() != BluetoothLeService.STATE_CONNECTED) {
+                Toast.makeText(getActivity(), R.string.not_connected, Toast.LENGTH_SHORT).show();
+                return;
+            }
+
+            if (message.length() > 0) {
+                // Get the message bytes and tell the BluetoothChatService to write
+                byte[] send = message.getBytes();
+
+                mBluetoothLeService.writeBytes(send);
+            }
         }
+        else {
+            // Check that we're actually connected before trying anything
+            if (mChatService.getState() != BluetoothChatService.STATE_CONNECTED) {
+                Toast.makeText(getActivity(), R.string.not_connected, Toast.LENGTH_SHORT).show();
+                return;
+            }
 
-        // Check that there's actually something to send
-        if (message.length() > 0) {
-            // Get the message bytes and tell the BluetoothChatService to write
-            byte[] send = message.getBytes();
-            mChatService.write(send);
+            // Check that there's actually something to send
+            if (message.length() > 0) {
+                // Get the message bytes and tell the BluetoothChatService to write
+                byte[] send = message.getBytes();
+                mChatService.write(send);
 
-            // Reset out string buffer to zero and clear the edit text field
-            mOutStringBuffer.setLength(0);
-            mOutEditText.setText(mOutStringBuffer);
+                // Reset out string buffer to zero and clear the edit text field
+                mOutStringBuffer.setLength(0);
+                mOutEditText.setText(mOutStringBuffer);
+            }
         }
     }
 
