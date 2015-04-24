@@ -48,9 +48,9 @@ public class BluetoothLeService extends Service {
     private BluetoothGatt mBluetoothGatt;
     private int mConnectionState = STATE_DISCONNECTED;
 
-    private static final int STATE_DISCONNECTED = 0;
-    private static final int STATE_CONNECTING = 1;
-    private static final int STATE_CONNECTED = 2;
+    public static final int STATE_DISCONNECTED = 0;
+    public static final int STATE_CONNECTING = 1;
+    public static final int STATE_CONNECTED = 2;
 
     public final static String ACTION_GATT_CONNECTED =
             "com.example.bluetooth.le.ACTION_GATT_CONNECTED";
@@ -199,6 +199,10 @@ public class BluetoothLeService extends Service {
         return true;
     }
 
+    public int getConnectionState() {
+        return mConnectionState;
+    }
+
     /**
      * Connects to the GATT server hosted on the Bluetooth LE device.
      *
@@ -280,6 +284,39 @@ public class BluetoothLeService extends Service {
             return;
         }
         mBluetoothGatt.readCharacteristic(characteristic);
+    }
+
+    public final static UUID UUID_TRANSFER_SERVICE =
+            UUID.fromString("E20A39F4-73F5-4BC4-A12F-17D1AD07A961");
+    public final static UUID UUID_TRANSFER_CHARACTERISTIC =
+            UUID.fromString("08590F7E-DB05-467E-8757-72F6FAEB13D4");
+
+
+    public boolean writeBytes(byte[] bytes) {
+        BluetoothGattService Service = mBluetoothGatt.getService(UUID_TRANSFER_SERVICE);
+        if (Service == null) {
+            Log.e(TAG, "service not found!");
+            return false;
+        }
+        BluetoothGattCharacteristic characteristic = Service
+                .getCharacteristic(UUID_TRANSFER_CHARACTERISTIC);
+        if (characteristic == null) {
+            Log.e(TAG, "char not found!");
+            return false;
+        }
+
+        characteristic.setValue(bytes);
+
+        return writeCharacteristic(characteristic);
+    }
+
+    public boolean writeCharacteristic(BluetoothGattCharacteristic characteristic) {
+        if (mBluetoothAdapter == null || mBluetoothGatt == null) {
+            Log.w(TAG, "BluetoothAdapter not initialized");
+            return false;
+        }
+
+        return mBluetoothGatt.writeCharacteristic(characteristic);
     }
 
     /**
