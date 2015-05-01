@@ -93,6 +93,9 @@ public class BluetoothLeService extends Service {
         public void onServicesDiscovered(BluetoothGatt gatt, int status) {
             if (status == BluetoothGatt.GATT_SUCCESS) {
                 broadcastUpdate(ACTION_GATT_SERVICES_DISCOVERED);
+
+                setCharacteristicNotification(lemonadeWriteCharacteristic(), true);
+
             } else {
                 Log.w(TAG, "onServicesDiscovered received: " + status);
             }
@@ -104,6 +107,16 @@ public class BluetoothLeService extends Service {
                                          int status) {
             if (status == BluetoothGatt.GATT_SUCCESS) {
                 broadcastUpdate(ACTION_DATA_AVAILABLE, characteristic);
+            }
+        }
+
+        @Override
+        public void onCharacteristicWrite (BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
+            if (status == BluetoothGatt.GATT_SUCCESS) {
+                Log.i(TAG, "onCharacteristicWrite success " + characteristic);
+            }
+            else {
+                Log.i(TAG, "onCharacteristicWrite failure status = " + status);
             }
         }
 
@@ -292,16 +305,26 @@ public class BluetoothLeService extends Service {
             UUID.fromString("4E1DB2F6-12F6-459A-8388-CB643D759308");
 
 
-    public boolean writeBytes(byte[] bytes) {
+    private BluetoothGattCharacteristic lemonadeWriteCharacteristic() {
         BluetoothGattService Service = mBluetoothGatt.getService(UUID_TRANSFER_SERVICE);
         if (Service == null) {
             Log.e(TAG, "service not found!");
-            return false;
+            return null;
         }
         BluetoothGattCharacteristic characteristic = Service
                 .getCharacteristic(UUID_TRANSFER_CHARACTERISTIC);
         if (characteristic == null) {
-            Log.e(TAG, "char not found!");
+            Log.e(TAG, "characteristic not found!");
+            return null;
+        }
+
+        return characteristic;
+    }
+
+    public boolean writeBytes(byte[] bytes) {
+        BluetoothGattCharacteristic characteristic = lemonadeWriteCharacteristic();
+        if (characteristic == null) {
+            Log.e(TAG, "characteristic not found!");
             return false;
         }
 
@@ -316,22 +339,33 @@ public class BluetoothLeService extends Service {
             return false;
         }
 
-        return mBluetoothGatt.writeCharacteristic(characteristic);
+        boolean result = mBluetoothGatt.writeCharacteristic(characteristic);
+
+        if (!result) {
+            Log.e(TAG, "write initialization failed");
+        }
+
+        return result;
     }
 
     /**
-     * Enables or disables notification on a give characteristic.
+     * Enables or disables notification on a given characteristic.
      *
      * @param characteristic Characteristic to act on.
      * @param enabled If true, enable notification.  False otherwise.
      */
-    public void setCharacteristicNotification(BluetoothGattCharacteristic characteristic,
+    public boolean setCharacteristicNotification(BluetoothGattCharacteristic characteristic,
                                               boolean enabled) {
         if (mBluetoothAdapter == null || mBluetoothGatt == null) {
             Log.w(TAG, "BluetoothAdapter not initialized");
-            return;
+            return false;
         }
-        mBluetoothGatt.setCharacteristicNotification(characteristic, enabled);
+
+        boolean result = mBluetoothGatt.setCharacteristicNotification(characteristic, enabled);
+
+        if (!result) {
+            Log.e(TAG, "setCharacteristicNotification failed");
+        }
 
         // This is specific to Heart Rate Measurement.
         if (UUID_HEART_RATE_MEASUREMENT.equals(characteristic.getUuid())) {
@@ -340,6 +374,8 @@ public class BluetoothLeService extends Service {
             descriptor.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE);
             mBluetoothGatt.writeDescriptor(descriptor);
         }
+
+        return result;
     }
 
     /**
