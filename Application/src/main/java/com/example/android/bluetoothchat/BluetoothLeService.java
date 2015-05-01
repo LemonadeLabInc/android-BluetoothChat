@@ -287,9 +287,9 @@ public class BluetoothLeService extends Service {
     }
 
     public final static UUID UUID_TRANSFER_SERVICE =
-            UUID.fromString("E20A39F4-73F5-4BC4-A12F-17D1AD07A961");
+            UUID.fromString("919F4046-B695-45D0-91A3-0A0D01DE310E");
     public final static UUID UUID_TRANSFER_CHARACTERISTIC =
-            UUID.fromString("08590F7E-DB05-467E-8757-72F6FAEB13D4");
+            UUID.fromString("4E1DB2F6-12F6-459A-8388-CB643D759308");
 
 
     public boolean writeBytes(byte[] bytes) {
