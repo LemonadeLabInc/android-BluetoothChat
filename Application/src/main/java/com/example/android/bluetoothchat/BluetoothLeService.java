@@ -32,6 +32,8 @@ import android.os.Binder;
 import android.os.IBinder;
 import android.util.Log;
 
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.util.List;
 import java.util.UUID;
 
@@ -219,6 +221,34 @@ public class BluetoothLeService extends Service {
         return mConnectionState;
     }
 
+    // from http://pastebin.com/PQz2hMKK
+    // potential workaround for https://code.google.com/p/android/issues/detail?id=58725
+    // unfortunately it appears this is only for Android 5.0
+    public BluetoothGatt connectGatt(BluetoothDevice bluetoothDevice, Context context, boolean autoConnect, BluetoothGattCallback callback) {
+        try {
+            Method m = BluetoothDevice.class.getMethod("connectGatt",
+                    Context.class, boolean.class, BluetoothGattCallback.class, int.class);
+            if (m != null) {
+                try{
+                    return (BluetoothGatt)m.invoke(bluetoothDevice,
+                            context, autoConnect, callback, 2);
+                } catch (IllegalAccessException ex) {
+                    // Handle exception
+                    return null;
+                } catch(InvocationTargetException ex) {
+                    // Handle exception
+                    return null;
+                }
+            } else {
+                return null;
+            }
+        } catch (NoSuchMethodException ex) {
+            // This way of doing it is not compatible for the current device
+            Log.w(TAG, "Method not found. " + ex);
+            return bluetoothDevice.connectGatt(this, false, mGattCallback);
+        }
+    }
+
     /**
      * Connects to the GATT server hosted on the Bluetooth LE device.
      *
@@ -254,10 +284,12 @@ public class BluetoothLeService extends Service {
         }
         // We want to directly connect to the device, so we are setting the autoConnect
         // parameter to false.
-        mBluetoothGatt = device.connectGatt(this, false, mGattCallback);
+        mBluetoothGatt = connectGatt(device, this, false, mGattCallback);
+        //mBluetoothGatt = device.connectGatt(this, false, mGattCallback);
         Log.d(TAG, "Trying to create a new connection.");
         mBluetoothDeviceAddress = address;
         mConnectionState = STATE_CONNECTING;
+
         return true;
     }
 
