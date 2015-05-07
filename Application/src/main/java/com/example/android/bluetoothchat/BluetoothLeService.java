@@ -341,6 +341,11 @@ public class BluetoothLeService extends Service {
 
 
     private BluetoothGattCharacteristic lemonadeWriteCharacteristic() {
+        if (mBluetoothGatt == null) {
+            Log.e(TAG, "no BluetoothLeService!");
+            return null;
+        }
+
         BluetoothGattService Service = mBluetoothGatt.getService(UUID_TRANSFER_SERVICE);
         if (Service == null) {
             Log.e(TAG, "service not found!");
