@@ -48,6 +48,10 @@ import android.widget.Toast;
 
 import com.example.android.common.logger.Log;
 
+import net.arnx.jsonic.JSON;
+
+import java.util.HashMap;
+
 /**
  * This fragment controls Bluetooth to communicate with other devices.
  */
@@ -242,8 +246,16 @@ public class BluetoothChatFragment extends Fragment {
             }
 
             if (message.length() > 0) {
+                // パラメータをJSON に変換
+                HashMap<String,String> map = new HashMap<String,String>();
+                map.put("service", mBluetoothLeService.UUID_TRANSFER_SERVICE.toString());
+                map.put("characteristic", mBluetoothLeService.UUID_TRANSFER_CHARACTERISTIC.toString());
+                map.put("message", message);
+
+                String jsonStr = JSON.encode(map);
+
                 // Get the message bytes and tell the BluetoothChatService to write
-                byte[] send = message.getBytes();
+                byte[] send = jsonStr.getBytes();
 
                 mBluetoothLeService.writeBytes(send);
             }
