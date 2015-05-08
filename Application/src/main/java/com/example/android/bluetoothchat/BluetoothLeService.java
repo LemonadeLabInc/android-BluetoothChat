@@ -142,7 +142,6 @@ public class BluetoothLeService extends Service {
         // This is special handling for the Heart Rate Measurement profile.  Data parsing is
         // carried out as per profile specifications:
         // http://developer.bluetooth.org/gatt/characteristics/Pages/CharacteristicViewer.aspx?u=org.bluetooth.characteristic.heart_rate_measurement.xml
-        // if (SampleGattAttributes.HEART_RATE_MEASUREMENT.compareToIgnoreCase(characteristic.getUuid()))
         if (UUID_TRANSFER_CHARACTERISTIC.toString().compareToIgnoreCase(characteristic.getUuid().toString()) == 0) {
             int flag = characteristic.getProperties();
             int format = -1;
@@ -408,7 +407,6 @@ public class BluetoothLeService extends Service {
 
         // This is specific to Heart Rate Measurement.
         Log.d(TAG, "setCharacteristicNotification characteristic.getUuid() - " + characteristic.getUuid());
-        //if (SampleGattAttributes.HEART_RATE_MEASUREMENT.equals(characteristic.getUuid())) {
         if (UUID_TRANSFER_CHARACTERISTIC.toString().compareToIgnoreCase(characteristic.getUuid().toString()) == 0) {
             BluetoothGattDescriptor descriptor = characteristic.getDescriptor(
                     UUID.fromString(SampleGattAttributes.CLIENT_CHARACTERISTIC_CONFIG));
