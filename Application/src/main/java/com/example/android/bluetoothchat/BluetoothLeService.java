@@ -34,8 +34,11 @@ import android.util.Log;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.util.ArrayDeque;
 import java.util.List;
+import java.util.Queue;
 import java.util.UUID;
+import java.util.concurrent.Executor;
 
 /**
  * Service for managing connection and data communication with a GATT server hosted on a
@@ -43,6 +46,52 @@ import java.util.UUID;
  */
 public class BluetoothLeService extends Service {
     private final static String TAG = BluetoothLeService.class.getSimpleName();
+
+    class SerialExecutor implements Executor {
+        final Queue tasks = new ArrayDeque();
+        final Executor executor;
+        Runnable active;
+
+        SerialExecutor(Executor executor) {
+            this.executor = executor;
+        }
+
+        public synchronized void execute(final Runnable r) {
+            tasks.offer(new Runnable() {
+                public void run() {
+                    try {
+                        r.run();
+
+                        try {
+                            mBleLock.wait();
+                        }
+                        catch (InterruptedException ex) {
+                        }
+                    } finally {
+                        scheduleNext();
+                    }
+                }
+            });
+            if (active == null) {
+                scheduleNext();
+            }
+        }
+
+        protected synchronized void scheduleNext() {
+            if ((active = (Runnable)tasks.poll()) != null) {
+                executor.execute(active);
+            }
+        }
+    }
+
+    class DirectExecutor implements Executor {
+        public void execute(Runnable r) {
+            r.run();
+        }
+    }
+
+    private SerialExecutor mExecutor = new SerialExecutor(new DirectExecutor());
+    private Object mBleLock = new Object();
 
     private BluetoothManager mBluetoothManager;
     private BluetoothAdapter mBluetoothAdapter;
@@ -96,7 +145,10 @@ public class BluetoothLeService extends Service {
             if (status == BluetoothGatt.GATT_SUCCESS) {
                 broadcastUpdate(ACTION_GATT_SERVICES_DISCOVERED);
 
-                setCharacteristicNotification(lemonadeWriteCharacteristic(), true);
+                boolean result = setCharacteristicNotification(lemonadeWriteCharacteristic(), true);
+                if (!result) {
+                    Log.e(TAG, "setCharacteristicNotification failed!");
+                }
 
             } else {
                 Log.w(TAG, "onServicesDiscovered received: " + status);
@@ -113,13 +165,15 @@ public class BluetoothLeService extends Service {
         }
 
         @Override
-        public void onCharacteristicWrite (BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
+        public void onCharacteristicWrite(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
             if (status == BluetoothGatt.GATT_SUCCESS) {
                 Log.i(TAG, "onCharacteristicWrite success " + characteristic);
             }
             else {
                 Log.i(TAG, "onCharacteristicWrite failure status = " + status);
             }
+
+            mBleLock.notify();
         }
 
         @Override
@@ -127,6 +181,19 @@ public class BluetoothLeService extends Service {
                                             BluetoothGattCharacteristic characteristic) {
             Log.d(TAG, "onCharacteristicChanged.");
             broadcastUpdate(ACTION_DATA_AVAILABLE, characteristic);
+        }
+
+        @Override
+        public void onDescriptorWrite(BluetoothGatt gatt, BluetoothGattDescriptor descriptor,
+                                      int status) {
+            if (status == BluetoothGatt.GATT_SUCCESS) {
+                Log.d(TAG, "onDescriptorWrite: success");
+            }
+            else {
+                Log.d(TAG, "onDescriptorWrite: " + status);
+            }
+
+            mBleLock.notify();
         }
     };
 
@@ -243,7 +310,7 @@ public class BluetoothLeService extends Service {
         } catch (NoSuchMethodException ex) {
             // This way of doing it is not compatible for the current device
             Log.w(TAG, "Method not found. " + ex);
-            return bluetoothDevice.connectGatt(this, false, mGattCallback);
+            return bluetoothDevice.connectGatt(this, false, callback);
         }
     }
 
@@ -359,6 +426,11 @@ public class BluetoothLeService extends Service {
         return characteristic;
     }
 
+    public boolean writeString(String string) {
+        Log.d(TAG, "writeString: " + string);
+        return writeBytes(string.getBytes());
+    }
+
     public boolean writeBytes(byte[] bytes) {
         BluetoothGattCharacteristic characteristic = lemonadeWriteCharacteristic();
         if (characteristic == null) {
@@ -371,20 +443,27 @@ public class BluetoothLeService extends Service {
         return writeCharacteristic(characteristic);
     }
 
-    public boolean writeCharacteristic(BluetoothGattCharacteristic characteristic) {
+    public boolean writeCharacteristic(final BluetoothGattCharacteristic characteristic) {
         if (mBluetoothAdapter == null || mBluetoothGatt == null) {
             Log.w(TAG, "BluetoothAdapter not initialized");
             return false;
         }
 
-        boolean result = mBluetoothGatt.writeCharacteristic(characteristic);
+        mExecutor.execute(new Runnable() {
+            @Override
+            public void run() {
+                boolean result = mBluetoothGatt.writeCharacteristic(characteristic);
 
-        if (!result) {
-            Log.e(TAG, "write initialization failed");
-        }
+                if (!result) {
+                    Log.e(TAG, "write initialization failed");
+                }
+            }
+        });
 
-        return result;
+        return true;
     }
+
+    public static String CLIENT_CHARACTERISTIC_CONFIG = "00002902-0000-1000-8000-00805f9b34fb";
 
     /**
      * Enables or disables notification on a given characteristic.
@@ -392,31 +471,35 @@ public class BluetoothLeService extends Service {
      * @param characteristic Characteristic to act on.
      * @param enabled If true, enable notification.  False otherwise.
      */
-    public boolean setCharacteristicNotification(BluetoothGattCharacteristic characteristic,
-                                              boolean enabled) {
+    private boolean setCharacteristicNotification(final BluetoothGattCharacteristic characteristic,
+                                              final boolean enabled) {
         if (mBluetoothAdapter == null || mBluetoothGatt == null) {
             Log.w(TAG, "BluetoothAdapter not initialized");
             return false;
         }
 
-        boolean result = mBluetoothGatt.setCharacteristicNotification(characteristic, enabled);
+        mExecutor.execute(new Runnable() {
+            @Override
+            public void run() {
+                boolean result = mBluetoothGatt.setCharacteristicNotification(characteristic, enabled);
 
-        if (!result) {
-            Log.e(TAG, "setCharacteristicNotification failed");
-        }
+                if (!result) {
+                    Log.e(TAG, "setCharacteristicNotification failed");
+                }
 
-        // This is specific to Heart Rate Measurement.
-        Log.d(TAG, "setCharacteristicNotification characteristic.getUuid() - " + characteristic.getUuid());
-        if (UUID_TRANSFER_CHARACTERISTIC.toString().compareToIgnoreCase(characteristic.getUuid().toString()) == 0) {
-            BluetoothGattDescriptor descriptor = characteristic.getDescriptor(
-                    UUID.fromString(SampleGattAttributes.CLIENT_CHARACTERISTIC_CONFIG));
-            descriptor.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE);
-            mBluetoothGatt.writeDescriptor(descriptor);
+                Log.d(TAG, "setCharacteristicNotification characteristic.getUuid() - " + characteristic.getUuid());
+                if (UUID_TRANSFER_CHARACTERISTIC.toString().compareToIgnoreCase(characteristic.getUuid().toString()) == 0) {
+                    BluetoothGattDescriptor descriptor = characteristic.getDescriptor(
+                            UUID.fromString(CLIENT_CHARACTERISTIC_CONFIG));
+                    descriptor.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE);
+                    mBluetoothGatt.writeDescriptor(descriptor);
 
-            Log.d(TAG, "Characteristic の Notification 有効化 - " + characteristic.getUuid());
-        }
+                    Log.d(TAG, "Characteristic の Notification 有効化 - " + characteristic.getUuid());
+                }
+            }
+        });
 
-        return result;
+        return true;
     }
 
     /**
