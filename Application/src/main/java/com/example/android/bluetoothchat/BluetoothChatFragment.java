@@ -308,7 +308,12 @@ public class BluetoothChatFragment extends Fragment {
                 // Get the message bytes and tell the BluetoothChatService to write
                 byte[] send = jsonStr.getBytes();
 
-                mBluetoothLeService.writeBytes(send);
+                mBluetoothLeService.writeString("{\"foo\": \"bar\"}");
+                boolean result = mBluetoothLeService.writeString(jsonStr);
+
+                if (!result) {
+                    Log.e(TAG, "writeBytes failed");
+                }
             }
         }
         else {
