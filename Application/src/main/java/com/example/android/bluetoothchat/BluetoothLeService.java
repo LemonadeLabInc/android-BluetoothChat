@@ -68,9 +68,9 @@ public class BluetoothLeService extends Service {
                     }
                 }
             });
-//            if (active == null) {
-//                scheduleNext();
-//            }
+            if (active == null) {
+                scheduleNext();
+            }
         }
 
         protected synchronized void scheduleNext() {
