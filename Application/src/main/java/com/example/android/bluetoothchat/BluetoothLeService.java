@@ -167,10 +167,10 @@ public class BluetoothLeService extends Service {
         @Override
         public void onCharacteristicWrite(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
             if (status == BluetoothGatt.GATT_SUCCESS) {
-                Log.i(TAG, "onCharacteristicWrite success " + characteristic);
+                Log.d(TAG, "onCharacteristicWrite success " + characteristic);
             }
             else {
-                Log.i(TAG, "onCharacteristicWrite failure status = " + status);
+                Log.d(TAG, "onCharacteristicWrite failure status = " + status);
             }
 
             mBleLock.notify();
@@ -190,7 +190,7 @@ public class BluetoothLeService extends Service {
                 Log.d(TAG, "onDescriptorWrite: success");
             }
             else {
-                Log.d(TAG, "onDescriptorWrite: " + status);
+                Log.d(TAG, "onDescriptorWrite: failure status = " + status);
             }
 
             mBleLock.notify();
@@ -452,11 +452,13 @@ public class BluetoothLeService extends Service {
         mExecutor.execute(new Runnable() {
             @Override
             public void run() {
+                Log.d(TAG, "writeCharacteristic start");
                 boolean result = mBluetoothGatt.writeCharacteristic(characteristic);
 
                 if (!result) {
                     Log.e(TAG, "write initialization failed");
                 }
+                Log.d(TAG, "writeCharacteristic end");
             }
         });
 
@@ -481,6 +483,8 @@ public class BluetoothLeService extends Service {
         mExecutor.execute(new Runnable() {
             @Override
             public void run() {
+                Log.d(TAG, "setCharacteristicNotification start");
+
                 boolean result = mBluetoothGatt.setCharacteristicNotification(characteristic, enabled);
 
                 if (!result) {
@@ -496,6 +500,8 @@ public class BluetoothLeService extends Service {
 
                     Log.d(TAG, "Characteristic の Notification 有効化 - " + characteristic.getUuid());
                 }
+
+                Log.d(TAG, "setCharacteristicNotification end");
             }
         });
 
