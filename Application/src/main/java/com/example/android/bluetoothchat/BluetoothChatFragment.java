@@ -293,7 +293,7 @@ public class BluetoothChatFragment extends Fragment {
         if (mBluetoothLeService != null) {  // TODO probably better to check the type of the device
             if (mBluetoothLeService.getConnectionState() != BluetoothLeService.STATE_CONNECTED) {
                 Toast.makeText(getActivity(), R.string.not_connected, Toast.LENGTH_SHORT).show();
-                return;
+                //return;
             }
 
             if (message.length() > 0) {
