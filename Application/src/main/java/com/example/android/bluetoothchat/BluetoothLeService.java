@@ -39,6 +39,8 @@ import java.util.List;
 import java.util.Queue;
 import java.util.UUID;
 import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadPoolExecutor;
 
 /**
  * Service for managing connection and data communication with a GATT server hosted on a
@@ -61,20 +63,14 @@ public class BluetoothLeService extends Service {
                 public void run() {
                     try {
                         r.run();
-
-                        try {
-                            mBleLock.wait();
-                        }
-                        catch (InterruptedException ex) {
-                        }
                     } finally {
-                        scheduleNext();
+                        //scheduleNext();
                     }
                 }
             });
-            if (active == null) {
-                scheduleNext();
-            }
+//            if (active == null) {
+//                scheduleNext();
+//            }
         }
 
         protected synchronized void scheduleNext() {
@@ -84,14 +80,13 @@ public class BluetoothLeService extends Service {
         }
     }
 
-    class DirectExecutor implements Executor {
-        public void execute(Runnable r) {
-            r.run();
-        }
-    }
+//    class DirectExecutor extends ThreadPoolExecutor {
+//        public void execute(Runnable r) {
+//            r.run();
+//        }
+//    }
 
-    private SerialExecutor mExecutor = new SerialExecutor(new DirectExecutor());
-    private Object mBleLock = new Object();
+    private SerialExecutor mExecutor = new SerialExecutor(Executors.newCachedThreadPool());
 
     private BluetoothManager mBluetoothManager;
     private BluetoothAdapter mBluetoothAdapter;
@@ -128,7 +123,6 @@ public class BluetoothLeService extends Service {
                 // Attempts to discover services after successful connection.
                 Log.i(TAG, "Attempting to start service discovery:" +
                         mBluetoothGatt.discoverServices());
-
             } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                 intentAction = ACTION_GATT_DISCONNECTED;
                 mConnectionState = STATE_DISCONNECTED;
@@ -149,6 +143,8 @@ public class BluetoothLeService extends Service {
                 if (!result) {
                     Log.e(TAG, "setCharacteristicNotification failed!");
                 }
+
+                //writeString("feefiefoefum");
 
             } else {
                 Log.w(TAG, "onServicesDiscovered received: " + status);
@@ -173,7 +169,7 @@ public class BluetoothLeService extends Service {
                 Log.d(TAG, "onCharacteristicWrite failure status = " + status);
             }
 
-            mBleLock.notify();
+            mExecutor.scheduleNext();
         }
 
         @Override
@@ -193,7 +189,7 @@ public class BluetoothLeService extends Service {
                 Log.d(TAG, "onDescriptorWrite: failure status = " + status);
             }
 
-            mBleLock.notify();
+            mExecutor.scheduleNext();
         }
     };
 
