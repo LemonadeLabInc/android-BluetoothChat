@@ -182,14 +182,22 @@ public class BluetoothLeService extends Service {
         @Override
         public void onDescriptorWrite(BluetoothGatt gatt, BluetoothGattDescriptor descriptor,
                                       int status) {
+            boolean scheduleNext = true;
+
             if (status == BluetoothGatt.GATT_SUCCESS) {
                 Log.d(TAG, "onDescriptorWrite: success");
+            }
+            else if (status == BluetoothGatt.GATT_INSUFFICIENT_AUTHENTICATION) {
+                Log.d(TAG, "onDescriptorWrite: GATT_INSUFFICIENT_AUTHENTICATION");
+                scheduleNext = false;
             }
             else {
                 Log.d(TAG, "onDescriptorWrite: failure status = " + status);
             }
 
-            mExecutor.scheduleNext();
+            if (scheduleNext) {
+                mExecutor.scheduleNext();
+            }
         }
     };
 
