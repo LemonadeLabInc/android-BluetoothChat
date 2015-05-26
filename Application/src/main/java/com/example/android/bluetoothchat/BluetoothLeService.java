@@ -144,7 +144,7 @@ public class BluetoothLeService extends Service {
                     Log.e(TAG, "setCharacteristicNotification failed!");
                 }
 
-                //writeString("feefiefoefum");
+                writeString("\"feefiefoefum\"");
 
             } else {
                 Log.w(TAG, "onServicesDiscovered received: " + status);
